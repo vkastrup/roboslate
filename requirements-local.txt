@@ -1,0 +1,7 @@
+# Optional local vision backend — no Claude API key required.
+# Install with: venv/bin/pip install -r requirements-local.txt
+#
+# Note: paddlepaddle will download ~100 MB of OCR models on first run.
+# Accuracy is lower than the Claude backend, especially for unusual slate layouts.
+paddlepaddle
+paddleocr
