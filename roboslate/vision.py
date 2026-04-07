@@ -563,6 +563,32 @@ def _crop_to_bbox(image_path, bbox, padding=0.03):
 
 
 # ---------------------------------------------------------------------------
+# Escalation pipeline helpers
+# ---------------------------------------------------------------------------
+
+def _apply_roll_correction(result, image_path, client, extraction_model, max_size, camera_letter, reel_hint):
+    """
+    Run a targeted roll-sticker pass on image_path and update result in place.
+    Falls back to reel_hint (filename) if the sticker pass returns nothing.
+    """
+    roll_field = (result.get("fields") or {}).get("roll", {})
+    roll_value = roll_field.get("value") if isinstance(roll_field, dict) else roll_field
+    roll_wrong = camera_letter and roll_value and not roll_value.upper().startswith(camera_letter)
+
+    if roll_value is None or roll_wrong:
+        sticker = _extract_roll_sticker(image_path, client, extraction_model, max_size, camera_letter)
+        if sticker and sticker.get("value"):
+            result.setdefault("fields", {})["roll"] = sticker
+        elif reel_hint and (roll_wrong or roll_value is None):
+            result.setdefault("fields", {})["roll"] = {
+                "value": reel_hint.upper(),
+                "confidence": "medium",
+                "source": "filename",
+            }
+        result["_roll_sticker_pass"] = True
+
+
+# ---------------------------------------------------------------------------
 # Escalation pipeline
 # ---------------------------------------------------------------------------
 
@@ -631,24 +657,7 @@ def detect_with_escalation(image_path, client, cfg, reel_hint=None):
         # --- Roll sticker targeted pass (only when roll field is active) ---
         roll_active = fields is None or "roll" in (fields or [])
         if roll_active:
-            roll_field = (result.get("fields") or {}).get("roll", {})
-            roll_value = roll_field.get("value") if isinstance(roll_field, dict) else roll_field
-            roll_wrong_camera = (
-                camera_letter and roll_value
-                and not roll_value.upper().startswith(camera_letter)
-            )
-            if roll_value is None or roll_wrong_camera:
-                sticker = _extract_roll_sticker(extract_src, client, extraction_model, max_size, camera_letter)
-                if sticker and sticker.get("value"):
-                    result.setdefault("fields", {})["roll"] = sticker
-                    result["_roll_sticker_pass"] = True
-                elif reel_hint and (roll_wrong_camera or roll_value is None):
-                    result.setdefault("fields", {})["roll"] = {
-                        "value": reel_hint.upper(),
-                        "confidence": "medium",
-                        "source": "filename",
-                    }
-                    result["_roll_sticker_pass"] = True
+            _apply_roll_correction(result, extract_src, client, extraction_model, max_size, camera_letter, reel_hint)
 
         oc = _overall_confidence(result)
         if oc in ("high", "medium"):
@@ -665,24 +674,7 @@ def detect_with_escalation(image_path, client, cfg, reel_hint=None):
         result2["bbox"] = sonnet_bbox
 
         if roll_active:
-            roll_field2 = (result2.get("fields") or {}).get("roll", {})
-            roll_value2 = roll_field2.get("value") if isinstance(roll_field2, dict) else roll_field2
-            roll_wrong_camera2 = (
-                camera_letter and roll_value2
-                and not roll_value2.upper().startswith(camera_letter)
-            )
-            if roll_value2 is None or roll_wrong_camera2:
-                sticker2 = _extract_roll_sticker(preprocessed_path, client, extraction_model, max_size, camera_letter)
-                if sticker2 and sticker2.get("value"):
-                    result2.setdefault("fields", {})["roll"] = sticker2
-                result2["_roll_sticker_pass"] = True
-            elif reel_hint and (roll_wrong_camera2 or roll_value2 is None):
-                result2.setdefault("fields", {})["roll"] = {
-                    "value": reel_hint.upper(),
-                    "confidence": "medium",
-                    "source": "filename",
-                }
-                result2["_roll_sticker_pass"] = True
+            _apply_roll_correction(result2, preprocessed_path, client, extraction_model, max_size, camera_letter, reel_hint)
 
         oc2 = _overall_confidence(result2)
         result2["needs_review"] = oc2 not in ("high", "medium")
@@ -747,10 +739,9 @@ def scan_frames(frame_entries, client, cfg, reel_hint=None):
         else:
             slate_readings = 0  # reset if we see non-slate frame
 
-        # Early exit: high/medium confidence hit
-        if result.get("slate_detected") and _overall_confidence(result) in (early_stop, "medium" if early_stop == "high" else early_stop):
-            if _overall_confidence(result) == early_stop:
-                break
+        # Early exit: confidence at or above the configured threshold
+        if result.get("slate_detected") and _overall_confidence(result) == early_stop:
+            break
 
         # Early exit: enough consistent slate readings (even if low confidence)
         if slate_readings >= CONSISTENT_READINGS_STOP:

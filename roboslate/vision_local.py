@@ -212,7 +212,7 @@ def detect_with_escalation(image_path, client, cfg, reel_hint=None):
         roll_value = (roll_field.get("value") or "")
         roll_wrong = roll_value and not roll_value.upper().startswith(camera_letter)
 
-        if roll_value is None or roll_wrong:
+        if not roll_value or roll_wrong:
             if reel_hint:
                 result["fields"]["roll"] = {
                     "value":      reel_hint.upper(),

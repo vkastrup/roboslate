@@ -491,6 +491,15 @@ def run_cli(args, cfg):
             print(f"No video files found in: {args.batch}", file=sys.stderr)
             sys.exit(0)
 
+        def _summary_entry(name, result, status):
+            return {"name": name, "status": status, "merged": {
+                "slate_detected":    (result or {}).get("result", {}).get("slate_found", False),
+                "overall_confidence":(result or {}).get("result", {}).get("overall_confidence", "none"),
+                "needs_review":      (result or {}).get("result", {}).get("needs_review", False),
+                "conflicts":         (result or {}).get("result", {}).get("conflicts", []),
+                "fields":            (result or {}).get("slate") or {},
+            }}
+
         # Determine parallelism: --workers flag > BATCH_WORKERS config > 1
         n_workers = getattr(args, "workers", None) or int(cfg.get("BATCH_WORKERS", 1))
         n_workers = max(1, n_workers)
@@ -539,14 +548,7 @@ def run_cli(args, cfg):
                 name, result, status, err = _process_one_batch(vf)
                 if err:
                     print(f"  ERROR: {err}", file=sys.stderr)
-                merged_for_summary = {
-                    "slate_detected": (result or {}).get("result", {}).get("slate_found", False),
-                    "overall_confidence": (result or {}).get("result", {}).get("overall_confidence", "none"),
-                    "needs_review": (result or {}).get("result", {}).get("needs_review", False),
-                    "conflicts": (result or {}).get("result", {}).get("conflicts", []),
-                    "fields": (result or {}).get("slate") or {},
-                }
-                clip_results.append({"name": name, "status": status, "merged": merged_for_summary})
+                clip_results.append(_summary_entry(name, result, status))
         else:
             # Parallel path
             with ThreadPoolExecutor(max_workers=n_workers) as pool:
@@ -561,14 +563,7 @@ def run_cli(args, cfg):
 
             for vf in video_files:
                 name, result, status = raw_results[vf]
-                merged_for_summary = {
-                    "slate_detected": (result or {}).get("result", {}).get("slate_found", False),
-                    "overall_confidence": (result or {}).get("result", {}).get("overall_confidence", "none"),
-                    "needs_review": (result or {}).get("result", {}).get("needs_review", False),
-                    "conflicts": (result or {}).get("result", {}).get("conflicts", []),
-                    "fields": (result or {}).get("slate") or {},
-                }
-                clip_results.append({"name": name, "status": status, "merged": merged_for_summary})
+                clip_results.append(_summary_entry(name, result, status))
 
         # Batch summary
         scr.print_batch_summary(clip_results, quiet=args.quiet)

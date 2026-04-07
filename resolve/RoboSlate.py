@@ -396,16 +396,7 @@ def main():
             continue
 
         try:
-            existing = mpi.GetMetadata() or {}
-            _log(f"    Existing metadata keys: {list(existing.keys())}")
-            _log(f"    Writing keys: {list(metadata.keys())}")
-            ok = mpi.SetMetadata(metadata)
-            _log(f"    SetMetadata returned: {ok!r}")
-            if not ok:
-                # Try writing keys individually to find which ones are accepted
-                for k, v in metadata.items():
-                    r = mpi.SetMetadata(k, v)
-                    _log(f"      SetMetadata({k!r}, {v!r}) → {r!r}")
+            mpi.SetMetadata(metadata)
         except Exception as e:
             _log(f"    ERROR writing metadata: {e}")
             errors += 1

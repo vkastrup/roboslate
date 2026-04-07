@@ -125,23 +125,3 @@ def preprocess_frame_file(input_path, output_path=None):
 
     processed.save(output_path, format="JPEG", quality=90)
     return output_path
-
-
-def crop_to_region(img, bbox_fraction):
-    """
-    Crop an image to a fractional bounding box.
-
-    Args:
-        img: PIL Image.
-        bbox_fraction: Dict with keys x0, y0, x1, y1 as fractions of image dimensions
-                       (e.g. {"x0": 0.1, "y0": 0.05, "x1": 0.9, "y1": 0.6}).
-
-    Returns:
-        Cropped PIL Image.
-    """
-    w, h = img.size
-    x0 = int(bbox_fraction["x0"] * w)
-    y0 = int(bbox_fraction["y0"] * h)
-    x1 = int(bbox_fraction["x1"] * w)
-    y1 = int(bbox_fraction["y1"] * h)
-    return img.crop((x0, y0, x1, y1))
