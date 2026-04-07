@@ -333,7 +333,10 @@ Or set it as the default in `config.env`:
 VISION_BACKEND=local
 ```
 
-**Note:** The local backend is significantly slower (~18–33 seconds per frame on CPU) and less accurate than Claude, especially on unusual slate layouts or poor lighting. A GPU is strongly recommended for practical use.
+**Note:** The local backend is significantly slower (~18–33 seconds per frame on CPU) and less accurate than Claude, especially on unusual slate layouts or poor lighting. A fast GPU is strongly recommended for practical use.
+
+**TODO:**
+when using local backend, add clip JSON files to Scratch update xml.
 
 ---
 
