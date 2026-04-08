@@ -22,6 +22,7 @@ Output goes to:
 import json
 import os
 import subprocess
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
@@ -53,17 +54,15 @@ LOG_FILE     = os.path.join(ROBOSLATE_DIR, "logs", "resolve.log")
 
 # Map RoboSlate field names → Resolve metadata keys.
 # scene and slate_number are combined into "Scene" (handled separately below).
+# Keys must exactly match Resolve's built-in metadata field names — unknown keys
+# cause SetMetadata() to return False and write nothing.
 FIELD_MAP = {
     "take":       "Take",
-    "roll":       "Roll",
-    "camera":     "Camera",
-    "director":   "Director",
-    "dop":        "DOP",
-    "production": "Production",
-    "date":       "Shoot Date",
-    "fps":        "Frame Rate",
-    "format":     "Format",
-    "notes":      "Comments",
+    "roll":       "Reel Number",
+    "camera":     "Camera #",
+    "production": "Production Name",
+    "date":       "Date Recorded",
+    "fps":        "Camera FPS",
 }
 
 
@@ -72,7 +71,8 @@ FIELD_MAP = {
 # ---------------------------------------------------------------------------
 
 def _log(msg):
-    print(msg)
+    if threading.current_thread() is threading.main_thread():
+        print(msg)
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
         with open(LOG_FILE, "a") as f:
@@ -252,12 +252,6 @@ def _build_metadata(data):
             if value is not None:
                 metadata[resolve_key] = str(value)
 
-    # RoboSlate provenance tags
-    res = data.get("result", {})
-    metadata["RoboSlate_Confidence"]  = res.get("overall_confidence", "")
-    metadata["RoboSlate_NeedsReview"] = "yes" if res.get("needs_review") else "no"
-    metadata["RoboSlate_ProcessedAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
     return metadata
 
 
@@ -396,9 +390,14 @@ def main():
             continue
 
         try:
-            mpi.SetMetadata(metadata)
+            ok = mpi.SetMetadata(metadata)
         except Exception as e:
             _log(f"    ERROR writing metadata: {e}")
+            errors += 1
+            continue
+
+        if not ok:
+            _log(f"    ERROR: SetMetadata returned False — keys may be unrecognised: {list(metadata.keys())}")
             errors += 1
             continue
 

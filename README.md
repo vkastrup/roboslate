@@ -297,18 +297,11 @@ With a timeline open, select clips you want to process (or leave nothing selecte
 | `Scene` | `scene` |
 | `Shot` | `slate_number` |
 | `Take` | `take` |
-| `Roll` | `roll` |
-| `Camera` | `camera` |
-| `Director` | `director` |
-| `DOP` | `dop` |
-| `Production` | `production` |
-| `Shoot Date` | `date` |
-| `Frame Rate` | `fps` |
-| `Format` | `format` |
-| `Comments` | `notes` |
-| `RoboSlate_Confidence` | `high` / `medium` / `low` |
-| `RoboSlate_NeedsReview` | `yes` / `no` |
-| `RoboSlate_ProcessedAt` | ISO timestamp |
+| `Reel Number` | `roll` |
+| `Camera #` | `camera` |
+| `Production Name` | `production` |
+| `Date Recorded` | `date` |
+| `Camera FPS` | `fps` |
 
 Only fields enabled in `config.env` and with a non-null value are written.
 
@@ -334,9 +327,6 @@ VISION_BACKEND=local
 ```
 
 **Note:** The local backend is significantly slower (~18–33 seconds per frame on CPU) and less accurate than Claude, especially on unusual slate layouts or poor lighting. A fast GPU is strongly recommended for practical use.
-
-**TODO:**
-when using local backend, add clip JSON files to Scratch update xml.
 
 ---
 

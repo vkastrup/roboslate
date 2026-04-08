@@ -326,6 +326,87 @@ def build_output_xml(scratch_input, clip_results, output_xml_path):
     return output_xml_path
 
 
+def build_standalone_xml(clip_results, output_path):
+    """
+    Write a SCRATCH update XML from a list of (file_path, result_dict) pairs,
+    where result_dict is the sidecar JSON structure (result["slate"], result["result"]).
+
+    Uses the filename stem as the construct name so SCRATCH can match clips by name.
+    Only clips with status "found" are included.
+
+    Args:
+        clip_results: List of (file_path, result_dict) tuples.
+        output_path:  Where to write the XML file.
+
+    Returns:
+        Path to written XML, or None if there are no found clips to write.
+    """
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    root = ET.Element("scratch")
+    root.set("action", "update")
+    groups_el     = ET.SubElement(root, "groups")
+    group_el      = ET.SubElement(groups_el, "group")
+    group_el.set("name", "RoboSlate")
+    constructs_el = ET.SubElement(group_el, "constructs")
+
+    wrote_any = False
+
+    for file_path, result in clip_results:
+        if (result or {}).get("status") != "found":
+            continue
+
+        slate = result.get("slate") or {}
+        res   = result.get("result") or {}
+
+        construct_name = os.path.splitext(os.path.basename(file_path))[0]
+        construct_el = ET.SubElement(constructs_el, "construct")
+        construct_el.set("name", construct_name)
+        slots_el = ET.SubElement(construct_el, "slots")
+        slot_el  = ET.SubElement(slots_el, "slot")
+        slot_el.set("index", "0")
+        shots_el = ET.SubElement(slot_el, "shots")
+        shot_el  = ET.SubElement(shots_el, "shot")
+        shot_el.set("layer", "0")
+        metadata_el = ET.SubElement(shot_el, "metadata")
+
+        # Provenance
+        _add_dataitem(metadata_el, "RoboSlate_Confidence",  res.get("overall_confidence", ""))
+        _add_dataitem(metadata_el, "RoboSlate_ProcessedAt", timestamp)
+        _add_dataitem(metadata_el, "RoboSlate_NeedsReview", "yes" if res.get("needs_review") else "no")
+
+        # Scene: SCRATCH expects "scene-slate" combined
+        scene_value = (slate.get("scene") or {}).get("value")
+        slate_value = (slate.get("slate_number") or {}).get("value")
+        if scene_value and slate_value:
+            _add_dataitem(metadata_el, "Scene", f"{scene_value}-{slate_value}")
+        elif scene_value:
+            _add_dataitem(metadata_el, "Scene", scene_value)
+        elif slate_value:
+            _add_dataitem(metadata_el, "Scene", slate_value)
+        if slate_value:
+            _add_dataitem(metadata_el, "SlateNumber", slate_value)
+
+        # Standard fields
+        for rs_field, scratch_key in FIELD_TO_SCRATCH_KEY.items():
+            field_data = slate.get(rs_field) or {}
+            value = field_data.get("value")
+            if value is not None:
+                _add_dataitem(metadata_el, scratch_key, str(value))
+                if field_data.get("confidence") == "low":
+                    _add_dataitem(metadata_el, f"{scratch_key}_LowConfidence", "yes")
+
+        wrote_any = True
+
+    if not wrote_any:
+        return None
+
+    _indent_xml(root)
+    tree = ET.ElementTree(root)
+    tree.write(output_path, encoding="UTF-8", xml_declaration=True)
+    return output_path
+
+
 def _add_dataitem(parent, key, value):
     item = ET.SubElement(parent, "dataitem")
     k = ET.SubElement(item, "key")

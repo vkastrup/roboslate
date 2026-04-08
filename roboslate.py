@@ -276,6 +276,14 @@ def write_outputs(result, video_path, args, csv_path=None, cfg=None):
             if not quiet:
                 print(f"  WARNING: Could not write JSON sidecar (skipping): {e}", file=sys.stderr)
 
+        if not stdout and result.get("status") == "found":
+            xml_path = output_path.replace(".roboslate.json", "") + ".roboslate.xml"
+            try:
+                scr.build_standalone_xml([(video_path, result)], xml_path)
+            except (PermissionError, OSError) as e:
+                if not quiet:
+                    print(f"  WARNING: Could not write Scratch XML (skipping): {e}", file=sys.stderr)
+
     if output_format in ("csv", "both"):
         _csv = csv_path or os.path.splitext(output_path)[0] + ".csv"
         out.write_csv_row(result, _csv, fields=fields)
@@ -468,8 +476,12 @@ def run_cli(args, cfg):
     if args.file:
         sidecar = out.get_default_output_path(args.file)
         if os.path.isfile(sidecar) and not getattr(args, "force", False):
-            print(f"  Skipping (already processed): {sidecar}")
-            print(f"  Use --force to re-process.")
+            if getattr(args, "stdout", False):
+                with open(sidecar) as _f:
+                    print(_f.read(), end="")
+            else:
+                print(f"  Skipping (already processed): {sidecar}")
+                print(f"  Use --force to re-process.")
         else:
             result, status = process_file(args.file, cfg, args)
             if result is not None:
@@ -511,6 +523,7 @@ def run_cli(args, cfg):
             print()
 
         clip_results = []
+        found_clips  = []   # (vf, result_dict) for clips with status "found" — used for batch XML
         csv_lock = threading.Lock()
 
         def _process_one_batch(vf):
@@ -522,7 +535,7 @@ def run_cli(args, cfg):
                 try:
                     with open(sidecar) as _f:
                         cached = json.load(_f)
-                    return name, cached, cached.get("status", "found"), None
+                    return name, vf, cached, cached.get("status", "found"), None
                 except Exception:
                     pass  # fall through to re-process if sidecar is unreadable
 
@@ -535,38 +548,52 @@ def run_cli(args, cfg):
                             write_outputs(result, vf, args, csv_path=args.csv, cfg=cfg)
                     else:
                         write_outputs(result, vf, args, csv_path=args.csv, cfg=cfg)
-                return name, result, status, None
+                return name, vf, result, status, None
             except Exception as e:
                 log.error(f"Failed: {vf}: {e}")
-                return name, None, "error", str(e)
+                return name, vf, None, "error", str(e)
 
         if n_workers == 1:
             # Sequential path — preserves ordered output with counters
             for i, vf in enumerate(video_files, 1):
                 name = os.path.basename(vf)
                 print(f"[{i}/{len(video_files)}] {name}")
-                name, result, status, err = _process_one_batch(vf)
+                name, vf, result, status, err = _process_one_batch(vf)
                 if err:
                     print(f"  ERROR: {err}", file=sys.stderr)
                 clip_results.append(_summary_entry(name, result, status))
+                if result and result.get("status") == "found":
+                    found_clips.append((vf, result))
         else:
             # Parallel path
             with ThreadPoolExecutor(max_workers=n_workers) as pool:
                 futures = {pool.submit(_process_one_batch, vf): vf for vf in video_files}
                 raw_results = {}
                 for future in as_completed(futures):
-                    vf = futures[future]
-                    name, result, status, err = future.result()
+                    orig_vf = futures[future]
+                    name, vf, result, status, err = future.result()
                     if err:
                         print(f"  ERROR [{name}]: {err}", file=sys.stderr)
-                    raw_results[vf] = (name, result, status)
+                    raw_results[orig_vf] = (name, vf, result, status)
 
-            for vf in video_files:
-                name, result, status = raw_results[vf]
+            for orig_vf in video_files:
+                name, vf, result, status = raw_results[orig_vf]
                 clip_results.append(_summary_entry(name, result, status))
+                if result and result.get("status") == "found":
+                    found_clips.append((vf, result))
 
         # Batch summary
         scr.print_batch_summary(clip_results, quiet=args.quiet)
+
+        # Combined Scratch XML for all found clips
+        if found_clips:
+            batch_xml = os.path.join(args.batch, "batch.roboslate.xml")
+            try:
+                scr.build_standalone_xml(found_clips, batch_xml)
+                if not args.quiet:
+                    print(f"  Scratch XML: {batch_xml}")
+            except (PermissionError, OSError) as e:
+                print(f"  WARNING: Could not write batch Scratch XML: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
