@@ -14,10 +14,13 @@ Per-field confidence is a first-class concept in the JSON schema:
 import base64
 import io
 import json
+import logging
 import os
 import re
 import tempfile
 import time
+
+log = logging.getLogger(__name__)
 
 from roboslate.merge import SLATE_FIELDS
 
@@ -283,7 +286,7 @@ def detect_and_extract(img_or_path, client, model, max_tokens, max_image_size=15
             )
             break
         except Exception as e:
-            if "RateLimitError" in type(e).__name__ and attempt < retries - 1:
+            if anthropic is not None and isinstance(e, anthropic.RateLimitError) and attempt < retries - 1:
                 time.sleep(delay)
                 delay *= 2
                 continue
@@ -414,7 +417,8 @@ def _extract_roll_sticker(image_path, client, model, max_image_size=1568, camera
             top_half.convert("RGB").save(buf, format="JPEG", quality=90)
             image_data = base64.standard_b64encode(buf.getvalue()).decode("utf-8")
 
-    except Exception:
+    except Exception as e:
+        log.warning("roll sticker image prep failed for %s: %s", image_path, e, exc_info=True)
         return None
 
     try:
@@ -435,7 +439,8 @@ def _extract_roll_sticker(image_path, client, model, max_image_size=1568, camera
                 }
             ],
         )
-    except Exception:
+    except Exception as e:
+        log.warning("roll sticker API call failed for %s: %s", image_path, e, exc_info=True)
         return None
 
     raw = response.content[0].text if response.content else ""
@@ -482,7 +487,8 @@ def detect_slate(image_path, client, model, max_image_size=1568):
                 }
             ],
         )
-    except Exception:
+    except Exception as e:
+        log.warning("detect_slate API call failed for %s: %s", image_path, e, exc_info=True)
         return False, None
 
     raw = response.content[0].text if response.content else ""
@@ -558,7 +564,8 @@ def _crop_to_bbox(image_path, bbox, padding=0.03):
         cropped.save(tmp.name, "JPEG", quality=92)
         return tmp.name
 
-    except Exception:
+    except Exception as e:
+        log.warning("crop_to_bbox failed for %s: %s", image_path, e, exc_info=True)
         return image_path
 
 

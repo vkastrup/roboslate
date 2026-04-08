@@ -291,30 +291,7 @@ def build_output_xml(scratch_input, clip_results, output_xml_path):
         _add_dataitem(metadata_el, "RoboSlate_ProcessedAt", timestamp)
         _add_dataitem(metadata_el, "RoboSlate_NeedsReview", "yes" if merged.get("needs_review") else "no")
 
-        # Scene: SCRATCH expects "scene-slate" combined in the Scene field
-        scene_value = (fields.get("scene") or {}).get("value")
-        slate_value = (fields.get("slate_number") or {}).get("value")
-        if scene_value and slate_value:
-            _add_dataitem(metadata_el, "Scene", f"{scene_value}-{slate_value}")
-        elif scene_value:
-            _add_dataitem(metadata_el, "Scene", scene_value)
-        elif slate_value:
-            _add_dataitem(metadata_el, "Scene", slate_value)
-        if slate_value:
-            _add_dataitem(metadata_el, "SlateNumber", slate_value)
-
-        for rs_field, scratch_key in FIELD_TO_SCRATCH_KEY.items():
-            field_data = fields.get(rs_field, {})
-            if not isinstance(field_data, dict):
-                continue
-            value = field_data.get("value")
-            field_confidence = field_data.get("confidence", "low")
-            if value is not None:
-                _add_dataitem(metadata_el, scratch_key, str(value))
-                # Also write confidence for low-confidence fields as a flag
-                if field_confidence == "low":
-                    _add_dataitem(metadata_el, f"{scratch_key}_LowConfidence", "yes")
-
+        _write_slate_metadata(metadata_el, fields)
         wrote_any = True
 
     if not wrote_any:
@@ -375,27 +352,7 @@ def build_standalone_xml(clip_results, output_path):
         _add_dataitem(metadata_el, "RoboSlate_ProcessedAt", timestamp)
         _add_dataitem(metadata_el, "RoboSlate_NeedsReview", "yes" if res.get("needs_review") else "no")
 
-        # Scene: SCRATCH expects "scene-slate" combined
-        scene_value = (slate.get("scene") or {}).get("value")
-        slate_value = (slate.get("slate_number") or {}).get("value")
-        if scene_value and slate_value:
-            _add_dataitem(metadata_el, "Scene", f"{scene_value}-{slate_value}")
-        elif scene_value:
-            _add_dataitem(metadata_el, "Scene", scene_value)
-        elif slate_value:
-            _add_dataitem(metadata_el, "Scene", slate_value)
-        if slate_value:
-            _add_dataitem(metadata_el, "SlateNumber", slate_value)
-
-        # Standard fields
-        for rs_field, scratch_key in FIELD_TO_SCRATCH_KEY.items():
-            field_data = slate.get(rs_field) or {}
-            value = field_data.get("value")
-            if value is not None:
-                _add_dataitem(metadata_el, scratch_key, str(value))
-                if field_data.get("confidence") == "low":
-                    _add_dataitem(metadata_el, f"{scratch_key}_LowConfidence", "yes")
-
+        _write_slate_metadata(metadata_el, slate)
         wrote_any = True
 
     if not wrote_any:
@@ -405,6 +362,30 @@ def build_standalone_xml(clip_results, output_path):
     tree = ET.ElementTree(root)
     tree.write(output_path, encoding="UTF-8", xml_declaration=True)
     return output_path
+
+
+def _write_slate_metadata(metadata_el, fields):
+    """Write slate field dataitems to a SCRATCH metadata element."""
+    scene_value = (fields.get("scene") or {}).get("value")
+    slate_value = (fields.get("slate_number") or {}).get("value")
+    if scene_value and slate_value:
+        _add_dataitem(metadata_el, "Scene", f"{scene_value}-{slate_value}")
+    elif scene_value:
+        _add_dataitem(metadata_el, "Scene", scene_value)
+    elif slate_value:
+        _add_dataitem(metadata_el, "Scene", slate_value)
+    if slate_value:
+        _add_dataitem(metadata_el, "SlateNumber", slate_value)
+
+    for rs_field, scratch_key in FIELD_TO_SCRATCH_KEY.items():
+        field_data = fields.get(rs_field) or {}
+        if not isinstance(field_data, dict):
+            continue
+        value = field_data.get("value")
+        if value is not None:
+            _add_dataitem(metadata_el, scratch_key, str(value))
+            if field_data.get("confidence", "low") == "low":
+                _add_dataitem(metadata_el, f"{scratch_key}_LowConfidence", "yes")
 
 
 def _add_dataitem(parent, key, value):

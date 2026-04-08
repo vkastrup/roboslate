@@ -367,11 +367,6 @@ def run_scratch_mode(input_xml, output_xml, cfg, args):
             if not quiet:
                 out.print_summary(result, fields=enabled_fields)
 
-            merged = mrg.merge_detections(
-                result.get("scan_log", []) if result else []
-            ) if result else None
-            # Actually, we already have the merged result baked into the result
-            # Rebuild a lightweight version for SCRATCH writeback
             merged_for_scratch = {
                 "slate_detected": (result or {}).get("result", {}).get("slate_found", False),
                 "overall_confidence": (result or {}).get("result", {}).get("overall_confidence", "none"),
