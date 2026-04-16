@@ -1,0 +1,7 @@
+pyobjc-framework-Vision
+pyobjc-framework-Quartz
+Pillow
+
+# Optional — VLM escalation pass (ENABLE_VLM_ESCALATION=true in config.env)
+# Apple Silicon only. Downloads ~1.5 GB model on first use.
+# mlx-vlm

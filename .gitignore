@@ -1,0 +1,14 @@
+venv/
+mlx/
+logs/
+output/
+tmp/
+temp/
+config.env
+.claude/
+.DS_Store
+*.pyc
+__pycache__/
+CLAUDE.md
+GIT_SETUP.txt
+ROADMAP.md
