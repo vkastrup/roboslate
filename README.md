@@ -1,6 +1,6 @@
 # RoboSlate-arm
 
-**Automatic clapperboard reading for macOS.** Point it at your rushes and get scene, take, roll, camera, and a dozen other slate fields written to a JSON sidecar — ready for DaVinci Resolve or Assimilate SCRATCH.
+**Automatic clapperboard reading for macOS.** Point it at your rushes and get scene, take, roll, camera, and a dozen other slate fields written to a JSON sidecar — ready for DaVinci Resolve(I'll leave this here, but since version 21, DaVinci Resolve has this feature natively.) or Assimilate SCRATCH.
 
 Powered by Apple Vision OCR and runs entirely on-device. Apple Silicon preferred (Neural Engine accelerated), but Intel Macs work too.
 
@@ -132,6 +132,7 @@ Every processed clip gets a `.roboslate.json` sidecar written alongside the sour
 ---
 
 ## DaVinci Resolve integration
+I'll leave this here, but since version 21, DaVinci Resolve has this feature natively.
 
 Copy the script to Resolve's Scripts folder:
 
